@@ -1,17 +1,19 @@
 import os
 from dotenv import load_dotenv
+import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, CallbackContext
 from datetime import datetime
 import requests
-
+from flask import Flask
+from threading import Thread
 
 load_dotenv()
-
-# Retrieve sensitive info from environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEB_APP_URL = os.getenv("WEB_APP_URL")
-print(f"Loaded BOT_TOKEN: {BOT_TOKEN}")
+WEB_APP_URL = os.getenv("WEB_APP_URL")  
+
+# Initialize Flask app
+app = Flask(__name__)
 
 # Function to add expenses
 async def add_expense(update: Update, context: CallbackContext):
@@ -52,16 +54,36 @@ async def add_expense(update: Update, context: CallbackContext):
 async def start(update: Update, context: CallbackContext):
     await update.message.reply_text("Welcome! Use /add <amount> <category> [optional notes] to log an expense.")
 
-# Main function
-def main():
+# Set up the bot and start polling
+def start_bot():
+    # Create an Application instance
     application = Application.builder().token(BOT_TOKEN).build()
 
     # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("add", add_expense))
 
-    # Start polling
+    # Start polling (blocking call)
     application.run_polling()
+
+# Simple route to check if the server is running
+@app.route('/')
+def index():
+    return "Bot is running."
+
+# Main function to start the Flask server and the Telegram bot
+def main():
+    # Run the Flask server in a separate thread
+    def run_flask():
+        port = int(os.environ.get("PORT", 5080))
+        app.run(host="0.0.0.0", port=port)
+
+    # Start Flask server in background thread
+    flask_thread = Thread(target=run_flask)
+    flask_thread.start()
+
+    # Run the Telegram bot in the main thread
+    start_bot()
 
 if __name__ == "__main__":
     main()
